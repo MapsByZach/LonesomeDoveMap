@@ -1,0 +1,571 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <meta name="theme-color" content="#5a351f" />
+  <meta name="description" content="An interpretive map of the cattle drive and major plot locations in Larry McMurtry's Lonesome Dove." />
+  <title>Lonesome Dove — Cattle Drive Atlas</title>
+
+  <link rel="stylesheet" href="https://js.arcgis.com/4.31/esri/themes/light/main.css" />
+  <link rel="stylesheet" href="https://js.arcgis.com/calcite-components/2.13.2/calcite.css" />
+  <script type="module" src="https://js.arcgis.com/calcite-components/2.13.2/calcite.esm.js"></script>
+
+  <style>
+    :root {
+      color-scheme: light;
+      --paper: #f3e5c6;
+      --paper-deep: #e4c997;
+      --ink: #3d2a1c;
+      --ink-muted: #6d5139;
+      --leather: #5a351f;
+      --leather-light: #8a4f24;
+      --brass: #c38a3a;
+      --oxblood: #7e301f;
+      --sage: #56643b;
+      --return: #485b58;
+      --border: #9a7851;
+      --shadow: 0 10px 30px rgb(58 37 22 / 22%);
+      --panel-width: 340px;
+    }
+
+    * { box-sizing: border-box; }
+    html, body, #app { width: 100%; height: 100%; margin: 0; }
+    body {
+      overflow: hidden;
+      background: var(--paper-deep);
+      color: var(--ink);
+      font-family: Georgia, "Times New Roman", serif;
+    }
+
+    button, a { font: inherit; }
+    a { color: var(--leather-light); }
+    a:focus-visible, button:focus-visible {
+      outline: 3px solid var(--brass);
+      outline-offset: 2px;
+    }
+
+    #app {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) var(--panel-width);
+      grid-template-areas: "map panel";
+      min-width: 0;
+      min-height: 0;
+    }
+
+    #map-wrap {
+      grid-area: map;
+      position: relative;
+      min-width: 0;
+      min-height: 0;
+      overflow: hidden;
+      background: #cdb68b;
+    }
+
+    #viewDiv { position: absolute; inset: 0; }
+
+    #info-panel {
+      grid-area: panel;
+      min-width: 0;
+      min-height: 0;
+      overflow-y: auto;
+      overscroll-behavior: contain;
+      scrollbar-color: var(--border) var(--paper);
+      background:
+        linear-gradient(rgb(243 229 198 / 96%), rgb(243 229 198 / 96%)),
+        repeating-linear-gradient(0deg, transparent 0 27px, rgb(90 53 31 / 5%) 28px);
+      border-left: 2px solid var(--leather);
+      box-shadow: -8px 0 24px rgb(58 37 22 / 18%);
+      z-index: 3;
+    }
+
+    .panel-inner { padding: 1.1rem 1.1rem max(1.2rem, env(safe-area-inset-bottom)); }
+    .eyebrow {
+      margin: 0 0 .35rem;
+      color: var(--oxblood);
+      font-family: system-ui, sans-serif;
+      font-size: .71rem;
+      font-weight: 800;
+      letter-spacing: .16em;
+      text-transform: uppercase;
+    }
+    h1 {
+      margin: 0;
+      color: var(--leather);
+      font-size: clamp(1.55rem, 3vw, 2.25rem);
+      line-height: .98;
+      text-wrap: balance;
+    }
+    .deck {
+      margin: .75rem 0 1rem;
+      color: var(--ink-muted);
+      font-size: .94rem;
+      line-height: 1.5;
+    }
+    .rule {
+      height: 5px;
+      margin: .9rem 0 1rem;
+      border-top: 1px solid var(--border);
+      border-bottom: 1px solid var(--border);
+    }
+
+    .legend { display: grid; gap: .62rem; margin: .85rem 0 1rem; }
+    .legend-row {
+      display: grid;
+      grid-template-columns: 22px minmax(0, 1fr);
+      align-items: center;
+      gap: .65rem;
+      color: var(--ink-muted);
+      font-family: system-ui, sans-serif;
+      font-size: .79rem;
+      line-height: 1.3;
+    }
+    .marker { width: 13px; height: 13px; justify-self: center; transform: rotate(45deg); }
+    .marker.named { background: var(--oxblood); border: 2px solid #f7e0ae; }
+    .marker.approx { background: var(--brass); clip-path: polygon(50% 0, 100% 100%, 0 100%); transform: none; }
+    .marker.return { background: var(--return); border: 2px solid #f1dcb1; }
+    .trail-key { width: 22px; height: 8px; border-top: 6px solid var(--leather); position: relative; }
+    .trail-key::after { content: ""; position: absolute; inset: -4px 0 auto; border-top: 2px dashed #e0b769; }
+
+    .stats { display: grid; grid-template-columns: 1fr 1fr; gap: .7rem; margin: 1rem 0; }
+    .stat {
+      padding: .72rem;
+      background: rgb(255 250 235 / 52%);
+      border: 1px solid var(--border);
+      border-radius: 2px;
+    }
+    .stat strong { display: block; color: var(--leather); font-size: 1.15rem; line-height: 1; }
+    .stat span { display: block; margin-top: .35rem; color: var(--ink-muted); font: .7rem/1.25 system-ui, sans-serif; }
+
+    .note {
+      padding: .8rem .85rem;
+      background: rgb(195 138 58 / 12%);
+      border-left: 4px solid var(--brass);
+      color: var(--ink-muted);
+      font-size: .81rem;
+      line-height: 1.45;
+    }
+    .note strong { color: var(--ink); }
+    .sources { margin-top: 1rem; color: var(--ink-muted); font: .72rem/1.45 system-ui, sans-serif; }
+
+    #panel-toggle {
+      display: none;
+      position: absolute;
+      right: .65rem;
+      bottom: calc(.65rem + env(safe-area-inset-bottom));
+      z-index: 6;
+      min-height: 44px;
+      padding: .62rem .8rem;
+      color: #fff7e6;
+      background: var(--leather);
+      border: 1px solid #f1d29a;
+      border-radius: 3px;
+      box-shadow: var(--shadow);
+      cursor: pointer;
+    }
+
+    /* ArcGIS chrome */
+    .esri-widget, .esri-menu, .esri-popup__main-container {
+      color: var(--ink);
+      background: var(--paper);
+      font-family: system-ui, sans-serif;
+    }
+    .esri-widget--button { color: var(--leather); background: var(--paper); }
+    .esri-widget--button:hover { color: white; background: var(--leather-light); }
+    .esri-popup__header-title { color: var(--leather); font-family: Georgia, "Times New Roman", serif; font-size: 1.08rem; }
+    .esri-popup__main-container { border: 1px solid var(--border); box-shadow: var(--shadow); }
+    .esri-popup__content { margin: 0; }
+    .esri-popup__footer { border-top-color: var(--border); }
+
+    /* Custom popup card */
+    .story-card { color: var(--ink); background: var(--paper); }
+    .story-card__banner {
+      display: grid;
+      grid-template-columns: 40px minmax(0, 1fr);
+      gap: .7rem;
+      align-items: center;
+      padding: .85rem 1rem;
+      color: #fff5df;
+      background: linear-gradient(135deg, var(--leather), #7b492b);
+      border-bottom: 3px double #d7a955;
+    }
+    .story-card__brand {
+      display: grid;
+      place-items: center;
+      width: 38px;
+      height: 38px;
+      border: 1px solid #e3bd76;
+      border-radius: 50%;
+      font-size: 1.1rem;
+    }
+    .story-card__kicker { color: #e9c985; font-size: .67rem; font-weight: 800; letter-spacing: .12em; text-transform: uppercase; }
+    .story-card__place { margin-top: .13rem; font-family: Georgia, "Times New Roman", serif; font-size: 1.05rem; font-weight: 700; line-height: 1.15; }
+    .story-card__body { padding: .9rem 1rem 1rem; }
+    .story-section + .story-section { margin-top: .9rem; padding-top: .85rem; border-top: 1px solid rgb(154 120 81 / 58%); }
+    .story-section h3 { margin: 0 0 .3rem; color: var(--oxblood); font: 800 .68rem/1 system-ui, sans-serif; letter-spacing: .09em; text-transform: uppercase; }
+    .story-section p { margin: 0; font-size: .86rem; line-height: 1.48; }
+    .confidence {
+      margin-top: .9rem;
+      padding: .62rem .7rem;
+      color: var(--ink-muted);
+      background: rgb(86 100 59 / 10%);
+      border-left: 3px solid var(--sage);
+      font: .74rem/1.4 system-ui, sans-serif;
+    }
+    .confidence.approx { background: rgb(195 138 58 / 12%); border-left-color: var(--brass); }
+    .popup-actions { display: flex; flex-wrap: wrap; gap: .55rem; margin-top: .9rem; }
+    .popup-link {
+      display: inline-flex;
+      align-items: center;
+      min-height: 40px;
+      padding: .5rem .7rem;
+      color: #fff8e7;
+      background: var(--leather-light);
+      border: 1px solid var(--leather);
+      border-radius: 2px;
+      font: 700 .75rem/1 system-ui, sans-serif;
+      text-decoration: none;
+    }
+    .popup-link.secondary { color: var(--leather); background: transparent; }
+
+    @media (max-width: 1024px) {
+      :root { --panel-width: 290px; }
+      .panel-inner { padding-inline: .9rem; }
+      .stats { grid-template-columns: 1fr; }
+    }
+
+    @media (max-width: 640px) {
+      body { overflow: hidden; }
+      #app {
+        grid-template-columns: minmax(0, 1fr);
+        grid-template-rows: minmax(320px, 60dvh) minmax(0, 40dvh);
+        grid-template-areas: "map" "panel";
+      }
+      #info-panel {
+        border-left: 0;
+        border-top: 2px solid var(--leather);
+        box-shadow: 0 -8px 22px rgb(58 37 22 / 16%);
+      }
+      #info-panel.collapsed { display: none; }
+      #app:has(#info-panel.collapsed) { grid-template-rows: minmax(0, 1fr); grid-template-areas: "map"; }
+      #panel-toggle { display: block; }
+      .panel-inner { padding: .85rem .9rem max(.9rem, env(safe-area-inset-bottom)); }
+      h1 { font-size: 1.55rem; }
+      .deck { margin-block: .55rem .7rem; }
+      .rule { margin-block: .65rem; }
+      .legend { grid-template-columns: 1fr 1fr; gap: .5rem .8rem; }
+      .stats { grid-template-columns: 1fr 1fr; }
+      .sources { margin-bottom: .5rem; }
+      .esri-scale-bar { display: none !important; }
+      .esri-ui-top-right { top: .2rem; right: .2rem; }
+      .esri-ui-top-left { top: .2rem; left: .2rem; }
+      .esri-popup--is-docked-bottom-center .esri-popup__main-container { max-height: 56dvh; }
+      .story-card__banner { padding: .7rem .8rem; }
+      .story-card__body { padding: .75rem .8rem .85rem; }
+    }
+
+    @media (max-width: 390px) {
+      #app { grid-template-rows: minmax(300px, 58dvh) minmax(0, 42dvh); }
+      .legend { grid-template-columns: 1fr; }
+      .stats { grid-template-columns: 1fr 1fr; }
+      .stat { padding: .6rem; }
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      *, *::before, *::after { scroll-behavior: auto !important; transition: none !important; animation: none !important; }
+    }
+  </style>
+</head>
+<body>
+  <main id="app">
+    <section id="map-wrap" aria-label="Interactive map of the Lonesome Dove cattle drive">
+      <div id="viewDiv"></div>
+      <button id="panel-toggle" type="button" aria-controls="info-panel" aria-expanded="true">Hide guide</button>
+    </section>
+
+    <aside id="info-panel" aria-label="Map guide">
+      <div class="panel-inner">
+        <p class="eyebrow">A literary geography</p>
+        <h1>Lonesome Dove<br />Cattle Drive Atlas</h1>
+        <p class="deck">Follow a careful reconstruction of the Hat Creek outfit’s journey from the lower Rio Grande to Montana.</p>
+        <div class="rule" aria-hidden="true"></div>
+
+        <div class="legend" aria-label="Map legend">
+          <div class="legend-row"><span class="trail-key" aria-hidden="true"></span><span>Reconstructed drive corridor</span></div>
+          <div class="legend-row"><span class="marker named" aria-hidden="true"></span><span>Named, higher-confidence place</span></div>
+          <div class="legend-row"><span class="marker approx" aria-hidden="true"></span><span>Approximate or inferred place</span></div>
+          <div class="legend-row"><span class="marker return" aria-hidden="true"></span><span>Call’s return journey</span></div>
+        </div>
+
+        <div class="stats" aria-label="Map summary">
+          <div class="stat"><strong>~1,800 mi</strong><span>Approximate northbound span</span></div>
+          <div class="stat"><strong>13</strong><span>Mapped plot locations</span></div>
+        </div>
+
+        <div class="note"><strong>Spoiler warning.</strong> Popups identify major deaths and the ending. Select a marker to read what happens in the novel and what is at that location today.</div>
+        <p class="sources"><strong>Mapmaker’s note:</strong> McMurtry names towns, rivers, and broad regions but never provides a surveyable trail. Proxy locations are explicitly labeled. Modern context is linked to official parks, cities, museums, and state-history sources.</p>
+      </div>
+    </aside>
+  </main>
+
+  <script type="module">
+    import Map from "https://js.arcgis.com/4.31/@arcgis/core/Map.js";
+    import MapView from "https://js.arcgis.com/4.31/@arcgis/core/views/MapView.js";
+    import Graphic from "https://js.arcgis.com/4.31/@arcgis/core/Graphic.js";
+    import GraphicsLayer from "https://js.arcgis.com/4.31/@arcgis/core/layers/GraphicsLayer.js";
+    import Home from "https://js.arcgis.com/4.31/@arcgis/core/widgets/Home.js";
+    import Expand from "https://js.arcgis.com/4.31/@arcgis/core/widgets/Expand.js";
+    import Legend from "https://js.arcgis.com/4.31/@arcgis/core/widgets/Legend.js";
+    import ScaleBar from "https://js.arcgis.com/4.31/@arcgis/core/widgets/ScaleBar.js";
+
+    const routeCoordinates = [
+      [-99.51, 27.51], [-98.494, 29.425], [-99.25, 34.34], [-100.38, 35.91],
+      [-100.017, 37.753], [-101.72, 41.129], [-105.0, 43.0], [-107.9, 47.0],
+      [-105.841, 46.408], [-106.36, 48.11]
+    ];
+
+    const places = [
+      {
+        place: "Lonesome Dove, Texas — Laredo-area proxy", lon: -99.51, lat: 27.51, kind: "approx",
+        book: "Gus McCrae and Woodrow Call run the Hat Creek outfit here. Jake Spoon’s tales of Montana prompt Call to organize the drive; Call returns at the novel’s end.",
+        today: "No real town corresponds exactly. This marker uses Laredo only as a proxy for the novel’s lower-Rio-Grande setting; modern Laredo is a major border city.",
+        confidence: "Low for the point; high for the narrative role.",
+        source: "https://texashighways.com/culture/the-real-locations-that-inspired-larry-mcmurtrys-lonesome-dove/"
+      },
+      {
+        place: "San Antonio, Texas", lon: -98.494, lat: 29.425, kind: "named",
+        book: "After Bolivar quits, Call hires Po Campo as cook; Po Campo then walks with the outfit to Montana.",
+        today: "A major city centered on the Alamo, River Walk, and the UNESCO-listed San Antonio Missions.",
+        confidence: "High — named in the novel.", source: "https://www.nps.gov/saan/index.htm"
+      },
+      {
+        place: "Austin, Texas", lon: -97.743, lat: 30.267, kind: "named",
+        book: "Jake leaves Lorena to gamble. During his absence, Blue Duck kidnaps her, setting Gus’s pursuit in motion.",
+        today: "Texas’s capital and a large metropolitan area; the Texas Capitol dominates the historic center.",
+        confidence: "High — named side episode.", source: "https://tspb.texas.gov/prop/tc/tc/capitol.html"
+      },
+      {
+        place: "Fort Worth, Texas", lon: -97.331, lat: 32.755, kind: "named",
+        book: "Jake learns July Johnson is pursuing him and leaves with the Suggs brothers, whose crimes ultimately implicate him.",
+        today: "A major city whose Stockyards preserve and interpret its cattle-trade history.",
+        confidence: "High — named side episode.", source: "https://www.fortworthstockyards.org/"
+      },
+      {
+        place: "Doan’s Crossing / Red River — inferred corridor", lon: -99.25, lat: 34.34, kind: "approx",
+        book: "A representative waypoint for the herd’s northward passage through Indian Territory and cattle-trail country. The novel does not identify an exact crossing here.",
+        today: "Agricultural land, small communities, and historic Great Western Cattle Trail markers remain in the region.",
+        confidence: "Low–medium — historically plausible reconstruction.", source: "https://www.okhistory.org/publications/enc/entry?entry=GR026"
+      },
+      {
+        place: "Canadian River rescue country — representative point", lon: -100.38, lat: 35.91, kind: "approx",
+        book: "Gus and July attack the bandits’ camp and rescue Lorena, but Roscoe, Joe, and Janey have already been killed. Blue Duck escapes.",
+        today: "The Canadian River crosses ranchland, breaks, and recreation areas in the Texas Panhandle; the camp itself is fictional and unspecified.",
+        confidence: "Medium — canonical river, approximate event site.", source: "https://www.tshaonline.org/handbook/entries/canadian-river"
+      },
+      {
+        place: "Western Kansas hanging site — Dodge City proxy", lon: -100.017, lat: 37.753, kind: "approx",
+        book: "The outfit overtakes the Suggs gang. Gus and Call conclude Jake crossed a line by staying with the killers and hang him with them.",
+        today: "Dodge City has Boot Hill Museum and extensive cattle-trail interpretation, but it is not established as Jake’s exact hanging place.",
+        confidence: "Low for location; high for the event.", source: "https://www.nps.gov/places/dodge-city-kansas.htm"
+      },
+      {
+        place: "Ogallala, Nebraska", lon: -101.72, lat: 41.129, kind: "named",
+        book: "Clara takes in Lorena. Gus finds that Clara will not renew their romance and continues north. Dee Boot is jailed and hanged here.",
+        today: "A small North Platte city with Front Street and Mansion on the Hill interpreting its trail and cattle-town past.",
+        confidence: "High for Ogallala; Clara’s ranch is fictional.", source: "https://visitogallala.com/"
+      },
+      {
+        place: "Wyoming dry country — regional proxy", lon: -105.0, lat: 43.0, kind: "approx",
+        book: "Horses are stolen by starving Native people; Deets is killed during their recovery. Later the herd nearly perishes in the arid basins.",
+        today: "Open rangeland, energy fields, and broad federal and private lands. This point is only a regional placeholder.",
+        confidence: "Low — no exact modern site is supplied.", source: "https://www.wsgs.wyo.gov/energy/oil-gas-basins.aspx"
+      },
+      {
+        place: "Lower Musselshell River — approximate", lon: -107.9, lat: 47.0, kind: "approx",
+        book: "Gus is wounded while scouting with Pea Eye. They shelter in a dugout; Gus sends Pea Eye for help, beginning his extraordinary trek across the plains.",
+        today: "Sparsely populated ranch country near Charles M. Russell National Wildlife Refuge and the Fort Peck reservoir system.",
+        confidence: "Medium — canonical river, fictional dugout site.", source: "https://www.fws.gov/refuge/charles-m-russell"
+      },
+      {
+        place: "Miles City, Montana", lon: -105.841, lat: 46.408, kind: "named",
+        book: "A doctor amputates one of Gus’s infected legs. Gus refuses removal of the other and dies after asking Call to bury him in Texas.",
+        today: "A working ranching center with the Range Riders Museum and the annual Bucking Horse Sale.",
+        confidence: "High — named in the novel.", source: "https://www.rangeridersmuseum.org/"
+      },
+      {
+        place: "Hat Creek ranch — Milk–Missouri region proxy", lon: -106.36, lat: 48.11, kind: "approx",
+        book: "The surviving outfit establishes the Montana ranch. Call leaves Newt in charge and gives him his horse, rifle, and watch, but cannot publicly acknowledge him as his son.",
+        today: "Open prairie, wheat and cattle country, small towns, the Milk and Missouri rivers, and the upper Fort Peck reservoir.",
+        confidence: "Medium for the region; low for this point.", source: "https://www.nwo.usace.army.mil/Missions/Dam-and-Lake-Projects/Fort-Peck/"
+      },
+      {
+        place: "Santa Rosa, New Mexico — return journey", lon: -104.68, lat: 34.94, kind: "return",
+        book: "On the long trip south with Gus’s body, Call visits the captured Blue Duck, who leaps to his death rather than submit to hanging.",
+        today: "A Route 66 community known for the Blue Hole and historic roadside landscape.",
+        confidence: "High for the town; this stop is on Call’s return, not the northbound drive.", source: "https://www.santarosanm.gov/"
+      }
+    ];
+
+    const symbols = {
+      named: { type: "simple-marker", style: "diamond", color: [126, 48, 31, 0.96], size: 16, outline: { color: [247, 224, 174, 1], width: 2 } },
+      approx: { type: "simple-marker", style: "triangle", color: [184, 116, 42, 0.96], size: 14, outline: { color: [80, 47, 24, 1], width: 1.8 } },
+      return: { type: "simple-marker", style: "diamond", color: [72, 91, 88, 0.96], size: 14, outline: { color: [241, 220, 177, 1], width: 2 } }
+    };
+
+    function mapsUrl(graphic) {
+      const { latitude, longitude } = graphic.geometry;
+      return `https://www.google.com/maps/search/?api=1&query=${latitude},${longitude}`;
+    }
+
+    function makePopupContent({ graphic }) {
+      const a = graphic.attributes;
+      const card = document.createElement("article");
+      card.className = "story-card";
+
+      const banner = document.createElement("div");
+      banner.className = "story-card__banner";
+      const brand = document.createElement("div");
+      brand.className = "story-card__brand";
+      brand.textContent = a.kind === "named" ? "★" : a.kind === "return" ? "↩" : "△";
+      brand.setAttribute("aria-hidden", "true");
+      const heading = document.createElement("div");
+      const kicker = document.createElement("div");
+      kicker.className = "story-card__kicker";
+      kicker.textContent = a.kind === "named" ? "Named trail location" : a.kind === "return" ? "The journey south" : "Reconstructed location";
+      const place = document.createElement("div");
+      place.className = "story-card__place";
+      place.textContent = a.place;
+      heading.append(kicker, place);
+      banner.append(brand, heading);
+
+      const body = document.createElement("div");
+      body.className = "story-card__body";
+      const section = (title, text) => {
+        const el = document.createElement("section");
+        el.className = "story-section";
+        const h = document.createElement("h3");
+        h.textContent = title;
+        const p = document.createElement("p");
+        p.textContent = text;
+        el.append(h, p);
+        return el;
+      };
+      body.append(section("From the pages", a.book), section("On the ground today", a.today));
+
+      const confidence = document.createElement("div");
+      confidence.className = `confidence ${a.kind === "named" ? "" : "approx"}`;
+      confidence.textContent = `Mapmaker’s note: ${a.confidence}`;
+      body.appendChild(confidence);
+
+      const actions = document.createElement("div");
+      actions.className = "popup-actions";
+      const google = document.createElement("a");
+      google.className = "popup-link";
+      google.href = mapsUrl(graphic);
+      google.target = "_blank";
+      google.rel = "noopener noreferrer";
+      google.textContent = "View in Google Maps";
+      const source = document.createElement("a");
+      source.className = "popup-link secondary";
+      source.href = a.source;
+      source.target = "_blank";
+      source.rel = "noopener noreferrer";
+      source.textContent = "Location source";
+      actions.append(google, source);
+      body.appendChild(actions);
+
+      card.append(banner, body);
+      return card;
+    }
+
+    const routeLayer = new GraphicsLayer({ title: "Reconstructed cattle-drive corridor", listMode: "show" });
+    const namedLayer = new GraphicsLayer({ title: "Named plot locations", listMode: "show" });
+    const approximateLayer = new GraphicsLayer({ title: "Approximate plot locations", listMode: "show" });
+    const returnLayer = new GraphicsLayer({ title: "Call’s return journey", listMode: "show" });
+
+    const routeGeometry = { type: "polyline", paths: [routeCoordinates], spatialReference: { wkid: 4326 } };
+    routeLayer.addMany([
+      new Graphic({ geometry: routeGeometry, symbol: { type: "simple-line", color: [73, 42, 22, 0.95], width: 7, cap: "round", join: "round" } }),
+      new Graphic({
+        geometry: routeGeometry,
+        symbol: { type: "simple-line", color: [224, 183, 105, 0.98], width: 2.5, style: "short-dash", cap: "round", join: "round" },
+        attributes: { place: "The trail north" },
+        popupTemplate: { title: "The trail north", content: "A reconstructed literary route connecting named towns, rivers, and representative regional waypoints. It is not a canonical surveyed trail." }
+      })
+    ]);
+
+    for (const location of places) {
+      const graphic = new Graphic({
+        geometry: { type: "point", longitude: location.lon, latitude: location.lat },
+        attributes: location,
+        symbol: symbols[location.kind],
+        popupTemplate: { title: location.place, outFields: ["*"], content: makePopupContent }
+      });
+      if (location.kind === "named") namedLayer.add(graphic);
+      else if (location.kind === "return") returnLayer.add(graphic);
+      else approximateLayer.add(graphic);
+    }
+
+    const map = new Map({
+      basemap: "streets-relief-vector",
+      layers: [routeLayer, approximateLayer, namedLayer, returnLayer]
+    });
+
+    const view = new MapView({
+      container: "viewDiv",
+      map,
+      center: [-102.5, 38.7],
+      zoom: 4,
+      constraints: { snapToZoom: false },
+      popup: {
+        collapseEnabled: true,
+        dockEnabled: false,
+        dockOptions: { position: "top-right", buttonEnabled: true, breakpoint: { width: 640 } }
+      },
+      highlightOptions: { color: [195, 138, 58, 1], haloOpacity: 0.9, fillOpacity: 0.12 }
+    });
+
+    const home = new Home({ view });
+    const legend = new Legend({ view, style: "card" });
+    const legendExpand = new Expand({ view, content: legend, expandIcon: "legend", expandTooltip: "Legend" });
+    const scaleBar = new ScaleBar({ view, unit: "dual" });
+    view.ui.add(home, "top-left");
+    view.ui.add(legendExpand, "top-right");
+    view.ui.add(scaleBar, "bottom-left");
+
+    const panel = document.getElementById("info-panel");
+    const toggle = document.getElementById("panel-toggle");
+    function syncResponsiveState() {
+      const mobile = window.matchMedia("(max-width: 640px)").matches;
+      view.popup.dockEnabled = mobile;
+      view.popup.dockOptions = mobile
+        ? { position: "bottom-center", buttonEnabled: true, breakpoint: false }
+        : { position: "top-right", buttonEnabled: true, breakpoint: { width: 640 } };
+      if (!mobile) {
+        panel.classList.remove("collapsed");
+        toggle.setAttribute("aria-expanded", "true");
+        toggle.textContent = "Hide guide";
+      }
+      view.resize();
+    }
+    toggle.addEventListener("click", () => {
+      const collapsed = panel.classList.toggle("collapsed");
+      toggle.setAttribute("aria-expanded", String(!collapsed));
+      toggle.textContent = collapsed ? "Show guide" : "Hide guide";
+      requestAnimationFrame(() => view.resize());
+    });
+    const media = window.matchMedia("(max-width: 640px)");
+    media.addEventListener("change", syncResponsiveState);
+    window.addEventListener("orientationchange", () => setTimeout(syncResponsiveState, 150));
+
+    await view.when();
+    await view.goTo(routeLayer.graphics.toArray(), { padding: { top: 50, right: 50, bottom: 50, left: 50 }, animate: false });
+    syncResponsiveState();
+
+    // Useful handles for browser-console inspection and extension.
+    window.__esriView = view;
+    window.__esriMap = map;
+    window.__esriLayers = { routeLayer, namedLayer, approximateLayer, returnLayer };
+  </script>
+</body>
+</html>
